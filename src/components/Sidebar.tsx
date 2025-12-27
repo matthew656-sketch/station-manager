@@ -17,9 +17,10 @@ export default function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
 
   return (
     <div className="w-64 bg-slate-900 text-white h-screen fixed left-0 top-0 flex flex-col shadow-lg z-50">
-      <div className="p-6 text-xl font-bold border-b border-slate-700 flex items-center gap-2">
-        Station Manager
-      </div>
+      <div className="p-6 border-b border-slate-700">
+      <h1 className="text-lg font-bold text-white leading-tight">Okeb Nigeria Ltd</h1>
+      <p className="text-xs text-blue-400 font-medium mt-1 uppercase tracking-wider">Station Manager</p>
+    </div>
       
       <nav className="flex-1 p-4 space-y-2">
         {menuItems.map((item) => (
