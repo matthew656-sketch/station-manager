@@ -1,8 +1,12 @@
 import { useState, useEffect } from 'react';
-import { Save, Plus, Loader2, CreditCard, CheckCircle, XCircle } from 'lucide-react';
+import { Save, Plus, Loader2, CreditCard, XCircle, CheckCircle } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 
-export default function FuelStation() {
+interface Props {
+  userRole: string;
+}
+
+export default function FuelStation({ userRole }: Props) {
   const [sales, setSales] = useState<any[]>([]); 
   const [debts, setDebts] = useState<any[]>([]); 
   const [loading, setLoading] = useState(false);
@@ -37,7 +41,6 @@ export default function FuelStation() {
   };
 
   const fetchDebts = async () => {
-    // Only show debts that are NOT paid
     const { data } = await supabase.from('debts').select('*').eq('status', 'Unpaid').order('id', { ascending: false });
     setDebts(data || []);
   };
@@ -76,7 +79,6 @@ export default function FuelStation() {
     setLoading(false);
   };
 
-  // --- NEW FUNCTION: Pay Debt ---
   const markAsPaid = async (id: number, name: string) => {
     if (!confirm(`Has ${name} paid this debt completely?`)) return;
 
@@ -87,7 +89,7 @@ export default function FuelStation() {
 
     if (!error) {
         alert("Debt Marked as Paid!");
-        fetchDebts(); // Refresh the list to remove it
+        fetchDebts();
     } else {
         alert("Error: " + error.message);
     }
@@ -96,7 +98,6 @@ export default function FuelStation() {
   return (
     <div className="space-y-6">
       
-      {/* Top Header & Warning */}
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold text-slate-800">Fuel & Gas Station</h1>
         {debts.length > 0 && (
@@ -199,16 +200,26 @@ export default function FuelStation() {
               </span>
           </div>
 
+          {/* SECURE SAVE BUTTON */}
           <div className="md:col-span-3">
-            <button type="submit" disabled={loading} className="w-full bg-blue-600 text-white p-3 rounded-lg font-bold hover:bg-blue-700 flex justify-center items-center gap-2">
-                {loading ? <Loader2 className="animate-spin" /> : <Save size={20} />} 
-                {loading ? 'Saving to Cloud...' : 'Save Daily Record'}
-            </button>
+            {userRole === 'admin' ? (
+                <button type="submit" disabled={loading} className="w-full bg-blue-600 text-white p-3 rounded-lg font-bold hover:bg-blue-700 flex justify-center items-center gap-2">
+                    {loading ? <Loader2 className="animate-spin" /> : <Save size={20} />} 
+                    {loading ? 'Saving to Cloud...' : 'Save Daily Record'}
+                </button>
+            ) : (
+                <div className="p-4 bg-slate-100 text-slate-500 text-center rounded-lg font-bold border border-slate-200 flex flex-col items-center gap-1">
+                    <span className="text-2xl">🔒</span>
+                    <span>View Only Mode</span>
+                    <span className="text-xs font-normal">Contact Admin to add records.</span>
+                </div>
+            )}
           </div>
+
         </form>
       </div>
 
-      {/* --- NEW SECTION: Debt Manager --- */}
+      {/* Debt Manager */}
       {debts.length > 0 && (
         <div className="bg-red-50 rounded-xl shadow-sm border border-red-100 overflow-hidden">
             <div className="p-4 bg-red-100 border-b border-red-200 flex justify-between items-center">
@@ -222,7 +233,6 @@ export default function FuelStation() {
                         <th className="p-4">Date</th>
                         <th className="p-4">Customer</th>
                         <th className="p-4">Amount</th>
-                        <th className="p-4">Staff Responsible</th>
                         <th className="p-4">Action</th>
                     </tr>
                 </thead>
@@ -232,13 +242,14 @@ export default function FuelStation() {
                             <td className="p-4">{debt.date}</td>
                             <td className="p-4 font-bold">{debt.customer_name}</td>
                             <td className="p-4 font-mono text-red-600 font-bold">₦{debt.amount.toLocaleString()}</td>
-                            <td className="p-4 text-sm">{debt.staff_name}</td>
                             <td className="p-4">
-                                <button 
-                                    onClick={() => markAsPaid(debt.id, debt.customer_name)}
-                                    className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 shadow-sm">
-                                    <CheckCircle size={16} /> Mark Paid
-                                </button>
+                                {userRole === 'admin' && (
+                                    <button 
+                                        onClick={() => markAsPaid(debt.id, debt.customer_name)}
+                                        className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 shadow-sm">
+                                        <CheckCircle size={16} /> Mark Paid
+                                    </button>
+                                )}
                             </td>
                         </tr>
                     ))}
@@ -249,9 +260,6 @@ export default function FuelStation() {
 
       {/* Sales Table */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-        <div className="p-4 bg-slate-50 border-b">
-            <h3 className="font-bold text-slate-700">Daily Sales History</h3>
-        </div>
         <table className="w-full text-left">
             <thead className="bg-slate-50 text-slate-600 border-b">
                 <tr>

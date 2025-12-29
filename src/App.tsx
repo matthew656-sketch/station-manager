@@ -21,32 +21,50 @@ function App() {
 
   // 1. Check for User on Startup
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setLoading(false);
-    });
+    // Add this state
+const [userRole, setUserRole] = useState('viewer'); // Default to viewer for safety
 
-    // 2. Listen for Login/Logout events automatically
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-    });
+// Update the useEffect
+useEffect(() => {
+  const checkUser = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    setSession(session);
+    
+    if (session?.user?.email) {
+      // Check the role from the database
+      const { data } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('email', session.user.email)
+        .single();
+      
+      if (data) setUserRole(data.role);
+    }
+    setLoading(false);
+  };
 
-    return () => subscription.unsubscribe();
-  }, []);
+  checkUser();
+
+  const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    setSession(session);
+    if (!session) setUserRole('viewer'); // Reset on logout
+  });
+
+  return () => subscription.unsubscribe();
+}, []);
 
   // 3. Routing Logic
   const renderContent = () => {
-    switch (activeTab) {
-      case 'dashboard': return <Dashboard />;
-      case 'fuel': return <FuelStation />;
-      case 'bakery': return <Bakery />;
-      case 'pos': return <POS />;
-      case 'farm': return <Farm />;
-      default: return <Dashboard />;
-    }
-  };
+  switch (activeTab) {
+    case 'dashboard': return <Dashboard />;
+    // Pass the userRole to the components
+    case 'fuel': return <FuelStation userRole={userRole} />;
+    case 'bakery': return <Bakery userRole={userRole} />;
+    case 'pos': return <POS userRole={userRole} />;
+    case 'farm': return <Farm userRole={userRole} />;
+    default: return <Dashboard />;
+  }
+};
 
   // 4. Loading Screen (Brief flash while checking database)
   if (loading) {

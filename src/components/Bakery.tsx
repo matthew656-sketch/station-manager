@@ -2,7 +2,11 @@ import { useState, useEffect } from 'react';
 import { Save, Plus, Trash2, Box, ShoppingCart, Settings, ChefHat, Package, TrendingUp, User } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 
-export default function Bakery() {
+interface Props {
+  userRole: string;
+}
+
+export default function Bakery({ userRole }: Props) {
   const [activeTab, setActiveTab] = useState('sales'); 
   const [products, setProducts] = useState<any[]>([]);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -26,17 +30,11 @@ export default function Bakery() {
   // --- SETTINGS ---
   const [newProduct, setNewProduct] = useState({ name: '', price: 0 });
 
-  // --- HELPER: Capitalize First Letter of Each Word ---
   const normalizeName = (name: string) => {
       if (!name) return '';
-      return name
-        .toLowerCase()
-        .split(' ')
-        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-        .join(' ');
+      return name.toLowerCase().split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
   };
 
-  // Calculate totals safely
   const totalSoldValue = cartItems.reduce((sum, item) => sum + ((item.qtyGiven - item.qtyReturned) * (item.price || 0)), 0);
   const debtIncurred = totalSoldValue - expenses - cashRemitted;
 
@@ -47,23 +45,16 @@ export default function Bakery() {
   const fetchData = async () => {
     setErrorMsg(null);
     try {
-        // 1. Get Products
         const { data: prodData } = await supabase.from('bakery_products').select('*').order('name', { ascending: true });
-        
-        // Normalize product names for display
         const safeProducts = (prodData || []).map(p => ({
-            ...p,
-            name: normalizeName(p.name),
-            price: p.price || p.Price || 0
+            ...p, name: normalizeName(p.name), price: p.price || p.Price || 0
         }));
         setProducts(safeProducts);
 
-        // Default selection
         if (safeProducts.length > 0 && !tempItem.type) {
             setTempItem(prev => ({ ...prev, type: safeProducts[0].name, price: safeProducts[0].price }));
         }
 
-        // 2. Get Sales & Production
         const { data: salesData } = await supabase.from('bakery_sales').select('*').order('id', { ascending: false });
         if (salesData) setSalesRecords(salesData);
 
@@ -72,16 +63,11 @@ export default function Bakery() {
             setProductionLogs(logData);
             calculateLiveStock(logData, salesData || []);
         }
-
-    } catch (err: any) {
-        console.error(err);
-    }
+    } catch (err: any) { console.error(err); }
   };
 
   const calculateLiveStock = (production: any[], sales: any[]) => {
       const currentStock: Record<string, number> = {};
-      
-      // Add Production (Normalize names so 'big milk' becomes 'Big Milk')
       production.forEach(log => {
           if (log.produced_items) {
               Object.entries(log.produced_items).forEach(([bread, qty]) => {
@@ -90,8 +76,6 @@ export default function Bakery() {
               });
           }
       });
-
-      // Subtract Sales (Normalize names)
       sales.forEach(sale => {
           if (sale.bread_type && sale.opening_stock) {
               const cleanName = normalizeName(sale.bread_type);
@@ -106,7 +90,6 @@ export default function Bakery() {
       setter((prev: any) => (field ? { ...prev, [field]: num } : num));
   };
 
-  // --- SALES ACTIONS ---
   const handleProductSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
       const selected = products.find(p => p.name === e.target.value);
       if (selected) setTempItem({ ...tempItem, type: selected.name, price: selected.price });
@@ -116,6 +99,12 @@ export default function Bakery() {
     if (tempItem.qtyGiven <= 0) return alert("Enter Quantity");
     setCartItems([...cartItems, { ...tempItem }]);
     setTempItem({ ...tempItem, qtyGiven: 0, qtyReturned: 0 }); 
+  };
+
+  const removeCartItem = (index: number) => {
+    const newCart = [...cartItems];
+    newCart.splice(index, 1);
+    setCartItems(newCart);
   };
 
   const submitSales = async () => {
@@ -150,7 +139,6 @@ export default function Bakery() {
     fetchData();
   };
 
-  // --- PRODUCTION ACTIONS ---
   const handleProductionCountChange = (breadName: string, value: string) => {
       const val = value === '' ? 0 : parseFloat(value);
       setProducedCounts(prev => ({ ...prev, [breadName]: val }));
@@ -158,8 +146,6 @@ export default function Bakery() {
 
   const submitProduction = async () => {
       if (!productionForm.bakerName) return alert("Enter Baker Name");
-
-      // Normalize keys before saving to JSON
       const cleanProducedItems: Record<string, number> = {};
       Object.entries(producedCounts).forEach(([key, val]) => {
           if (val > 0) cleanProducedItems[normalizeName(key)] = val;
@@ -182,7 +168,6 @@ export default function Bakery() {
       }
   };
 
-  // --- SETTINGS ACTIONS ---
   const saveProduct = async () => {
       if (!newProduct.name) return;
       await supabase.from('bakery_products').insert([{ ...newProduct, name: normalizeName(newProduct.name) }]);
@@ -200,30 +185,23 @@ export default function Bakery() {
 
   return (
     <div className="space-y-6">
-      
-      {/* TABS */}
       <div className="flex gap-4 border-b border-slate-300 pb-2 overflow-x-auto">
         <button onClick={() => setActiveTab('sales')} className={`px-4 py-2 font-bold flex gap-2 whitespace-nowrap ${activeTab === 'sales' ? 'text-orange-600 border-b-2 border-orange-600' : 'text-slate-500'}`}><ShoppingCart size={18}/> Sales & Dispatch</button>
         <button onClick={() => setActiveTab('production')} className={`px-4 py-2 font-bold flex gap-2 whitespace-nowrap ${activeTab === 'production' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-slate-500'}`}><Box size={18}/> Factory</button>
         <button onClick={() => setActiveTab('settings')} className={`px-4 py-2 font-bold flex gap-2 whitespace-nowrap ${activeTab === 'settings' ? 'text-slate-800 border-b-2 border-slate-800' : 'text-slate-500'}`}><Settings size={18}/> Prices</button>
       </div>
 
-      {/* === SALES TAB === */}
       {activeTab === 'sales' && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            
-            {/* LIVE STOCK PANEL */}
             <div className="lg:col-span-3 bg-slate-800 text-white p-4 rounded-lg flex items-center gap-4 overflow-x-auto">
                 <div className="font-bold text-orange-400 whitespace-nowrap flex items-center gap-2"><TrendingUp size={20} /> Stock:</div>
-                {Object.keys(stock).length === 0 ? <span className="text-slate-500 text-sm">No production data yet.</span> : 
-                 Object.entries(stock).map(([bread, qty]) => (
+                {Object.entries(stock).map(([bread, qty]) => (
                     <div key={bread} className="bg-slate-700 px-3 py-1 rounded-full text-sm border border-slate-600">
                         {bread}: <span className={qty < 10 ? "text-red-400 font-bold" : "text-green-400 font-bold"}>{qty}</span>
                     </div>
                 ))}
             </div>
 
-            {/* LEFT: Dispatch Form */}
             <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-slate-200">
                 <div className="mb-6">
                     <label className="block text-sm font-bold text-slate-700">Select Sales Person</label>
@@ -232,29 +210,26 @@ export default function Bakery() {
                 </div>
                 <div className="bg-orange-50 p-4 rounded-lg border border-orange-100 mb-6">
                     <h3 className="font-bold text-orange-800 mb-2 text-sm">Add Products to Bag</h3>
-                    {products.length === 0 ? <p className="text-red-500 text-xs">Add products in 'Prices' tab first.</p> : (
-                        <div className="grid grid-cols-2 md:grid-cols-5 gap-2 items-end">
-                            <div className="col-span-2">
-                                <label className="text-xs text-orange-800">Bread Type</label>
-                                <select className="w-full p-2 border rounded text-sm" value={tempItem.type} onChange={handleProductSelect}>
-                                    {products.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
-                                </select>
-                            </div>
-                            <div><label className="text-xs text-orange-800">Price</label><input type="number" className="w-full p-2 border rounded text-sm bg-orange-100" value={tempItem.price} readOnly /></div>
-                            <div><label className="text-xs text-orange-800">Given</label><input type="number" className="w-full p-2 border rounded text-sm" placeholder="Qty" value={tempItem.qtyGiven || ''} onChange={e => handleNumChange(setTempItem, 'qtyGiven', e.target.value)} /></div>
-                            <div><label className="text-xs text-orange-800">Returned</label><input type="number" className="w-full p-2 border rounded text-sm" placeholder="0" value={tempItem.qtyReturned || ''} onChange={e => handleNumChange(setTempItem, 'qtyReturned', e.target.value)} /></div>
-                            <button onClick={addToCart} className="col-span-2 md:col-span-5 bg-orange-600 text-white p-2 rounded hover:bg-orange-700 font-bold mt-2">+ Add to List</button>
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-2 items-end">
+                        <div className="col-span-2">
+                            <label className="text-xs text-orange-800">Bread Type</label>
+                            <select className="w-full p-2 border rounded text-sm" value={tempItem.type} onChange={handleProductSelect}>
+                                {products.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
+                            </select>
                         </div>
-                    )}
+                        <div><label className="text-xs text-orange-800">Price</label><input type="number" className="w-full p-2 border rounded text-sm bg-orange-100" value={tempItem.price} readOnly /></div>
+                        <div><label className="text-xs text-orange-800">Given</label><input type="number" className="w-full p-2 border rounded text-sm" placeholder="Qty" value={tempItem.qtyGiven || ''} onChange={e => handleNumChange(setTempItem, 'qtyGiven', e.target.value)} /></div>
+                        <div><label className="text-xs text-orange-800">Returned</label><input type="number" className="w-full p-2 border rounded text-sm" placeholder="0" value={tempItem.qtyReturned || ''} onChange={e => handleNumChange(setTempItem, 'qtyReturned', e.target.value)} /></div>
+                        <button onClick={addToCart} className="col-span-2 md:col-span-5 bg-orange-600 text-white p-2 rounded hover:bg-orange-700 font-bold mt-2">+ Add to List</button>
+                    </div>
                 </div>
-                {/* Cart List */}
                 <div className="space-y-2 mb-6">
                     {cartItems.map((item, index) => (
                         <div key={index} className="flex justify-between items-center bg-slate-50 p-2 rounded border">
                             <div className="text-sm"><strong>{item.type}</strong> <span className="text-slate-500 text-xs ml-2">(Given: {item.qtyGiven} | Ret: {item.qtyReturned})</span></div>
                             <div className="flex gap-4 items-center">
                                 <span className="font-bold text-green-700">₦{((item.qtyGiven - item.qtyReturned) * item.price).toLocaleString()}</span>
-                                <button onClick={() => {const n = [...cartItems]; n.splice(index,1); setCartItems(n);}} className="text-red-500"><Trash2 size={16}/></button>
+                                <button onClick={() => removeCartItem(index)} className="text-red-500"><Trash2 size={16}/></button>
                             </div>
                         </div>
                     ))}
@@ -263,10 +238,17 @@ export default function Bakery() {
                     <div><label className="text-xs font-bold text-slate-500">Expenses</label><input type="number" className="w-full p-2 border rounded" value={expenses || ''} onChange={e => handleNumChange(setExpenses, '', e.target.value)}/></div>
                     <div><label className="text-xs font-bold text-green-600">Cash Remitted</label><input type="number" className="w-full p-2 border border-green-200 rounded bg-green-50" value={cashRemitted || ''} onChange={e => handleNumChange(setCashRemitted, '', e.target.value)}/></div>
                 </div>
-                <button onClick={submitSales} className="w-full mt-6 bg-slate-900 text-white p-3 rounded font-bold">Save Record</button>
+                
+                {/* SECURE BUTTON */}
+                <div className="mt-6">
+                    {userRole === 'admin' ? (
+                        <button onClick={submitSales} className="w-full bg-slate-900 text-white p-3 rounded font-bold hover:bg-slate-800">Save Sales Record</button>
+                    ) : (
+                        <div className="p-3 bg-slate-100 text-slate-500 text-center rounded border">🔒 View Only Mode</div>
+                    )}
+                </div>
             </div>
 
-            {/* Summary Card */}
             <div className="bg-white p-6 rounded-xl shadow-lg border h-fit">
                 <h3 className="font-bold text-lg mb-4 flex items-center gap-2"><User size={20}/> {staffName || 'Staff'} Summary</h3>
                 <div className="space-y-4">
@@ -279,7 +261,6 @@ export default function Bakery() {
         </div>
       )}
 
-      {/* === PRODUCTION TAB === */}
       {activeTab === 'production' && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 h-fit">
@@ -300,7 +281,14 @@ export default function Bakery() {
                           </div>
                       ))}
                   </div>
-                  <button onClick={submitProduction} className="w-full mt-6 bg-blue-600 text-white p-3 rounded font-bold hover:bg-blue-700">Save Production Log</button>
+                  {/* SECURE BUTTON */}
+                  <div className="mt-6">
+                    {userRole === 'admin' ? (
+                        <button onClick={submitProduction} className="w-full bg-blue-600 text-white p-3 rounded font-bold hover:bg-blue-700">Save Production Log</button>
+                    ) : (
+                        <div className="p-3 bg-slate-100 text-slate-500 text-center rounded border">🔒 View Only Mode</div>
+                    )}
+                  </div>
               </div>
               <div className="bg-slate-100 p-4 rounded-xl h-fit max-h-[600px] overflow-y-auto">
                   <h3 className="font-bold text-slate-600 mb-4">History</h3>
@@ -322,21 +310,29 @@ export default function Bakery() {
           </div>
       )}
 
-      {/* === SETTINGS TAB === */}
       {activeTab === 'settings' && (
           <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 max-w-2xl">
               <h2 className="text-xl font-bold mb-4 text-slate-800">Manage Prices</h2>
-              <div className="flex gap-4 mb-6 items-end bg-slate-50 p-4 rounded-lg">
-                  <input type="text" className="w-full p-2 border rounded" placeholder="Product Name" value={newProduct.name} onChange={e => setNewProduct({...newProduct, name: e.target.value})} />
-                  <input type="number" className="w-32 p-2 border rounded" placeholder="Price" value={newProduct.price || ''} onChange={e => handleNumChange(setNewProduct, 'price', e.target.value)} />
-                  <button onClick={saveProduct} className="bg-slate-900 text-white p-2 rounded px-4 font-bold">Add</button>
-              </div>
+              {userRole === 'admin' ? (
+                  <div className="flex gap-4 mb-6 items-end bg-slate-50 p-4 rounded-lg">
+                      <input type="text" className="w-full p-2 border rounded" placeholder="Product Name" value={newProduct.name} onChange={e => setNewProduct({...newProduct, name: e.target.value})} />
+                      <input type="number" className="w-32 p-2 border rounded" placeholder="Price" value={newProduct.price || ''} onChange={e => handleNumChange(setNewProduct, 'price', e.target.value)} />
+                      <button onClick={saveProduct} className="bg-slate-900 text-white p-2 rounded px-4 font-bold">Add</button>
+                  </div>
+              ) : (
+                  <div className="p-3 bg-red-50 text-red-500 mb-4 border border-red-200 rounded text-center">Only Admins can change prices</div>
+              )}
+              
               <table className="w-full text-left bg-white border"><tbody>
                   {products.map(p => (
                       <tr key={p.id} className="border-b">
                           <td className="p-3">{p.name}</td>
                           <td className="p-3">₦{p.price.toLocaleString()}</td>
-                          <td className="p-3"><button onClick={() => deleteProduct(p.id)} className="text-red-500"><Trash2 size={18}/></button></td>
+                          <td className="p-3">
+                              {userRole === 'admin' && (
+                                <button onClick={() => deleteProduct(p.id)} className="text-red-500"><Trash2 size={18}/></button>
+                              )}
+                          </td>
                       </tr>
                   ))}
               </tbody></table>
