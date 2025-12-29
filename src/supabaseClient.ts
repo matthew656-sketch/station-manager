@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 
-const supabaseUrl = 'https://zcpcdceubfwuinlwaimn.supabase.co'
-const supabaseKey = 'sb_publishable_FS_M_5LeC1lRynZTScqXeQ_kdHLD9dw'
+// This reads the invisible keys from your .env file
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+const supabaseKey = import.meta.env.VITE_SUPABASE_KEY
 
 export const supabase = createClient(supabaseUrl, supabaseKey)
