@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Save, Plus, Loader2, CreditCard, XCircle, CheckCircle, Printer } from 'lucide-react';
+import { Save, Plus, Loader2, CreditCard, XCircle, CheckCircle, Printer, Trash2 } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 
 interface Props {

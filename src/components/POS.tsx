@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Save, Wallet, Banknote, RefreshCw, Calculator, Loader2, Info } from 'lucide-react';
+import { Save, Wallet, Banknote, RefreshCw, Calculator, Loader2, Info, Printer } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 
 interface Props { userRole: string; }
@@ -7,37 +7,25 @@ interface Props { userRole: string; }
 export default function POS({ userRole }: Props) {
   const [records, setRecords] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [printData, setPrintData] = useState<any>(null); // For Receipt
   
   const [form, setForm] = useState({
-    staffName: '',
-    machineName: 'Moniepoint 1',
-    openingCash: 0,
-    openingWallet: 0,
-    capitalGiven: 0,
-    closingCash: 0,
-    closingWallet: 0,
-    cashRemitted: 0,
-    transactionVolume: 0, 
-    chargePer100k: 1000,
-    bankCharges: 0,      
-    exemptedVolume: 0,   
+    staffName: '', machineName: 'Moniepoint 1',
+    openingCash: 0, openingWallet: 0, capitalGiven: 0,
+    closingCash: 0, closingWallet: 0, cashRemitted: 0,
+    transactionVolume: 0, chargePer100k: 1000, bankCharges: 0, exemptedVolume: 0,   
   });
 
-  // 1. Actual Cash Logic
   const startTotal = Number(form.openingCash) + Number(form.openingWallet) + Number(form.capitalGiven);
   const endTotal = Number(form.closingCash) + Number(form.closingWallet) + Number(form.cashRemitted);
   const rawProfit = endTotal - startTotal;
 
-  // 2. Target Logic
   const taxableVolume = Math.max(0, Number(form.transactionVolume) - Number(form.exemptedVolume));
   const expectedCommission = (taxableVolume / 100000) * Number(form.chargePer100k);
   const targetProfit = expectedCommission - Number(form.bankCharges);
-  
   const performanceDifference = rawProfit - targetProfit;
 
-  useEffect(() => {
-    fetchRecords();
-  }, []);
+  useEffect(() => { fetchRecords(); }, []);
 
   const fetchRecords = async () => {
     const { data } = await supabase.from('pos_records').select('*').order('id', { ascending: false });
@@ -47,51 +35,36 @@ export default function POS({ userRole }: Props) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-
+    // Ensure column 'expected_commission' exists in Supabase 'pos_records' table!
     const { error } = await supabase.from('pos_records').insert([{
-          staff_name: form.staffName,
-          machine_name: form.machineName,
-          actual_profit: rawProfit,
-          expected_commission: targetProfit,
+          staff_name: form.staffName, machine_name: form.machineName,
+          actual_profit: rawProfit, expected_commission: targetProfit,
           date: new Date().toLocaleDateString()
     }]);
 
     if (!error) {
-        alert('POS Record Saved!');
-        fetchRecords();
-        // Clear only daily values, keep constants like Name/Machine
-        setForm(prev => ({ 
-            ...prev, 
-            openingCash: 0, openingWallet: 0, capitalGiven: 0,
-            closingCash: 0, closingWallet: 0, cashRemitted: 0,
-            transactionVolume: 0, bankCharges: 0, exemptedVolume: 0 
-        }));
-    } else {
-        alert('Error: ' + error.message);
-    }
+        alert('POS Record Saved!'); fetchRecords();
+        setForm({ ...form, openingCash: 0, openingWallet: 0, closingCash: 0, closingWallet: 0, transactionVolume: 0, bankCharges: 0, exemptedVolume: 0 });
+    } else { alert('Error: ' + error.message); }
     setLoading(false);
+  };
+
+  const handlePrint = (record: any) => {
+    setPrintData(record);
+    setTimeout(() => { window.print(); }, 100);
   };
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-slate-800">POS Center</h1>
+      <h1 className="text-2xl font-bold text-slate-800">POS & Money Transfer</h1>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
-        {/* FORM */}
         <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-slate-200">
           <form onSubmit={handleSubmit} className="space-y-6">
-            
             <div className="grid grid-cols-2 gap-4">
-               <div><label className="text-xs text-slate-500 font-bold">Staff</label><input className="w-full p-2 border rounded" value={form.staffName} onChange={e => setForm({...form, staffName: e.target.value})} /></div>
-               <div><label className="text-xs text-slate-500 font-bold">Machine</label>
-                  <select className="w-full p-2 border rounded" value={form.machineName} onChange={e => setForm({...form, machineName: e.target.value})}>
-                    <option>Moniepoint 1</option><option>Opay 1</option><option>Palmpay</option>
-                  </select>
-               </div>
+               <div><label className="text-xs font-bold text-slate-500">Staff</label><input className="w-full p-2 border rounded" value={form.staffName} onChange={e => setForm({...form, staffName: e.target.value})} /></div>
+               <div><label className="text-xs font-bold text-slate-500">Machine</label><select className="w-full p-2 border rounded" value={form.machineName} onChange={e => setForm({...form, machineName: e.target.value})}><option>Moniepoint 1</option><option>Opay 1</option><option>Palmpay</option></select></div>
             </div>
-
-            {/* MONEY SECTIONS */}
             <div className="grid grid-cols-2 gap-4">
                 <div className="bg-orange-50 p-3 rounded border border-orange-100">
                     <h3 className="text-xs font-bold text-orange-800 mb-2">STARTING</h3>
@@ -106,8 +79,6 @@ export default function POS({ userRole }: Props) {
                     <input type="number" placeholder="Cash Remitted" className="w-full p-2 border rounded text-sm" onChange={e => setForm({...form, cashRemitted: parseFloat(e.target.value) || 0})} />
                 </div>
             </div>
-
-            {/* ANALYSIS */}
             <div className="bg-purple-50 p-4 rounded border border-purple-100">
                 <h3 className="text-xs font-bold text-purple-800 mb-2">ANALYSIS</h3>
                 <div className="grid grid-cols-2 gap-4">
@@ -117,39 +88,56 @@ export default function POS({ userRole }: Props) {
                     <div><label className="text-[10px] uppercase font-bold text-slate-600">Free Transfers</label><input type="number" className="w-full p-2 border rounded" onChange={e => setForm({...form, exemptedVolume: parseFloat(e.target.value) || 0})} /></div>
                 </div>
             </div>
-
-            {/* SAVE BUTTON */}
-            {userRole === 'admin' ? (
-                <button type="submit" disabled={loading} className="w-full bg-slate-900 text-white p-3 rounded font-bold hover:bg-slate-800">
-                    {loading ? <Loader2 className="animate-spin inline" /> : <Save className="inline mr-2" size={18} />} Close Account
-                </button>
-            ) : <div className="p-3 bg-slate-100 text-center rounded border">🔒 View Only Mode</div>}
-
+            {userRole === 'admin' ? <button type="submit" disabled={loading} className="w-full bg-slate-900 text-white p-3 rounded font-bold hover:bg-slate-800">{loading ? <Loader2 className="animate-spin inline" /> : "Close Account"}</button> : <div className="p-3 bg-slate-100 text-center rounded border">🔒 View Only Mode</div>}
           </form>
         </div>
 
-        {/* RESULTS PANEL */}
         <div className="bg-slate-900 text-white p-6 rounded-xl shadow-lg h-fit space-y-6">
             <div className={`p-4 rounded-lg border ${rawProfit >= 0 ? 'bg-green-900/50 border-green-500' : 'bg-red-900/50 border-red-500'}`}>
                 <div className="text-xs uppercase text-slate-400 mb-1">Actual Profit (Cash)</div>
-                <div className={`text-3xl font-bold font-mono ${rawProfit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                    {rawProfit >= 0 ? '+' : ''}₦{rawProfit.toLocaleString()}
-                </div>
+                <div className={`text-3xl font-bold font-mono ${rawProfit >= 0 ? 'text-green-400' : 'text-red-400'}`}>{rawProfit >= 0 ? '+' : ''}₦{rawProfit.toLocaleString()}</div>
             </div>
-
             <div className="space-y-2 text-sm pt-4 border-t border-slate-700">
                 <div className="flex justify-between"><span>Taxable Vol:</span><span className="font-mono">₦{taxableVolume.toLocaleString()}</span></div>
                 <div className="flex justify-between"><span>Gross Comm:</span><span className="font-mono">₦{expectedCommission.toLocaleString()}</span></div>
                 <div className="flex justify-between text-red-400"><span>- Bank Charges:</span><span className="font-mono">₦{form.bankCharges.toLocaleString()}</span></div>
                 <div className="flex justify-between font-bold text-blue-300 border-t border-slate-700 pt-2"><span>Target Profit:</span><span className="font-mono">₦{targetProfit.toLocaleString()}</span></div>
             </div>
-
-            <div className={`text-center p-2 rounded font-bold text-sm ${performanceDifference >= -100 ? 'bg-green-600' : 'bg-red-600'}`}>
-                {performanceDifference >= -100 ? "BALANCED" : `SHORTAGE: ₦${Math.abs(performanceDifference).toLocaleString()}`}
-            </div>
+            <div className={`text-center p-2 rounded font-bold text-sm ${performanceDifference >= -100 ? 'bg-green-600' : 'bg-red-600'}`}>{performanceDifference >= -100 ? "BALANCED" : `SHORTAGE: ₦${Math.abs(performanceDifference).toLocaleString()}`}</div>
         </div>
-
       </div>
+
+      {/* HISTORY TABLE WITH PRINTER */}
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+        <table className="w-full text-left text-sm">
+            <thead className="bg-slate-50 border-b"><tr><th className="p-4">Date</th><th className="p-4">Staff</th><th className="p-4">Profit</th><th className="p-4">Target</th><th className="p-4">Print</th></tr></thead>
+            <tbody>
+                {records.map((rec, i) => (
+                    <tr key={i} className="border-b hover:bg-slate-50">
+                        <td className="p-4">{rec.date}</td><td className="p-4 font-bold">{rec.staff_name}</td>
+                        <td className="p-4 font-mono font-bold text-green-700">₦{rec.actual_profit?.toLocaleString()}</td>
+                        <td className="p-4 font-mono text-slate-500">₦{rec.expected_commission?.toLocaleString()}</td>
+                        <td className="p-4"><button onClick={() => handlePrint(rec)} className="text-slate-500 hover:text-blue-600"><Printer size={18} /></button></td>
+                    </tr>
+                ))}
+            </tbody>
+        </table>
+      </div>
+
+      {/* PRINT RECEIPT */}
+      {printData && (
+        <div id="printable-receipt" className="hidden">
+            <div className="text-center mb-6"><h1 className="text-2xl font-bold uppercase">Okeb Nigeria Ltd</h1><p className="text-sm text-slate-500">POS Daily Balance Receipt</p><div className="border-b border-dashed border-black my-4"></div></div>
+            <div className="space-y-4 text-sm">
+                <div className="flex justify-between"><span>Date:</span> <span className="font-bold">{printData.date}</span></div>
+                <div className="flex justify-between"><span>Staff:</span> <span className="font-bold">{printData.staff_name}</span></div>
+                <div className="flex justify-between"><span>Machine:</span> <span className="font-bold">{printData.machine_name}</span></div>
+                <div className="border-t border-dashed border-black my-2"></div>
+                <div className="flex justify-between text-lg font-bold"><span>PROFIT:</span><span>₦{printData.actual_profit?.toLocaleString()}</span></div>
+                <div className="text-xs text-center mt-2">(Target was: ₦{printData.expected_commission?.toLocaleString()})</div>
+            </div>
+            <div className="mt-8 text-center text-xs italic"><p>Authorized by Station Manager.</p></div>
+        </div>
+      )}
     </div>
   );
-}
