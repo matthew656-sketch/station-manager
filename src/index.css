@@ -6,3 +6,31 @@
 body {
     background-color: #f3f4f6; /* Light gray background for the app */
 }
+@media print {
+  /* Hide everything by default */
+  body * {
+    visibility: hidden;
+  }
+
+  /* Only show the receipt area */
+  #printable-receipt, #printable-receipt * {
+    visibility: visible;
+  }
+
+  /* Position the receipt at the top of the paper */
+  #printable-receipt {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    margin: 0;
+    padding: 20px;
+    background: white;
+    color: black;
+  }
+
+  /* Hide buttons inside the receipt if any */
+  .no-print-btn {
+    display: none;
+  }
+}
